@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import timedelta
-
+from pydantic import BaseModel
 from app.database import get_db
 from app.config import API_ACCESS_TOKEN_EXPIRE_MINUTES
 from app.modules.users import models, schemas, service
@@ -43,21 +43,43 @@ async def get_current_admin_user(current_user: models.User = Depends(get_current
     return current_user
 
 # Route d'authentification
+# @router.post("/token", response_model=schemas.Token)
+# async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+#     user = service.authenticate_user(db, form_data.username, form_data.password)
+#     if not user:
+#         raise HTTPException(
+#             status_code=status.HTTP_401_UNAUTHORIZED,
+#             detail="Incorrect username or password",
+#             headers={"WWW-Authenticate": "Bearer"},
+#         )
+#     access_token_expires = timedelta(minutes=API_ACCESS_TOKEN_EXPIRE_MINUTES)
+#     access_token = service.create_access_token(
+#         data={"sub": user.username}, expires_delta=access_token_expires
+#     )
+#     return {"access_token": access_token, "token_type": "bearer"}
+
+#Route d'autentification
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
 @router.post("/token", response_model=schemas.Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = service.authenticate_user(db, form_data.username, form_data.password)
+async def login_for_access_token(login_data: LoginRequest, db: Session = Depends(get_db)):
+    user = service.authenticate_user(db, login_data.username, login_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
     access_token_expires = timedelta(minutes=API_ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = service.create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
+    
     return {"access_token": access_token, "token_type": "bearer"}
-
 # Routes pour les utilisateurs
 @router.post("/", response_model=schemas.User)
 async def create_user(user: schemas.UserCreate, db: Session = Depends(get_db),
