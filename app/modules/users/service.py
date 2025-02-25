@@ -10,7 +10,7 @@ from app.config import API_SECRET_KEY, API_ALGORITHM, API_ACCESS_TOKEN_EXPIRE_MI
 from app.modules.users import models, schemas
 from app.adapters.mysql_adapter import MySQLAdapter
 from app.adapters.oracle_adapter import OracleAdapter
-from app.adapters.mongo_adapter import MongoAdapter
+from app.adapters.mongo_adapter import MongoDBAdapter
 
 # Configuration de l'encryption des mots de passe
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -26,7 +26,23 @@ def authenticate_user(db: Session, username: str, password: str):
     if not user or not verify_password(password, user.hashed_password):
         return False
     return user
+'''ajout de la fonction get_current_user pour vérifier si l'utilisateur est authentifié'''
+def get_current_user(db: Session, token: str = None):
+    try:
+        payload = jwt.decode(token, API_SECRET_KEY, algorithms=[API_ALGORITHM])
+        user_id: int = payload.get("sub")
+        if user_id is None:
+            return None
+    except JWTError:
+        return None
+    
+'''ajout de la fonction get_current_active_user pour vérifier si l'utilisateur est authentifié et actif'''
+def get_current_active_user(current_user: models.User):
+    if current_user.is_active:
+        return current_user
+    raise HTTPException(status_code=400, detail="Inactive user")
 
+'''ajout de la fonction create_access_token pour générer un token d'accès'''
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
@@ -146,6 +162,7 @@ def create_database(db: Session, database: schemas.ManagedDatabaseCreate):
     return db_database
 
 # Service pour synchroniser les utilisateurs avec les bases de données externes
+'''ajout de la fonction sync_user_with_database pour synchroniser un utilisateur avec une base de données externe'''
 def sync_user_with_database(db: Session, mapping: schemas.UserDatabaseMappingCreate):
     # Récupérer l'utilisateur et la base de données
     user = get_user(db, mapping.platform_user_id)
@@ -155,6 +172,7 @@ def sync_user_with_database(db: Session, mapping: schemas.UserDatabaseMappingCre
         raise HTTPException(status_code=404, detail="User or database not found")
     
     # Créer le mapping dans la base centrale
+    
     db_mapping = models.UserDatabaseMapping(
         platform_user_id=mapping.platform_user_id,
         database_id=mapping.database_id,
@@ -166,6 +184,7 @@ def sync_user_with_database(db: Session, mapping: schemas.UserDatabaseMappingCre
     db.refresh(db_mapping)
     
     # Créer l'utilisateur dans la base de données externe
+    
     if database.db_type == 'mysql':
         adapter = MySQLAdapter(
             host=database.host,
@@ -183,7 +202,7 @@ def sync_user_with_database(db: Session, mapping: schemas.UserDatabaseMappingCre
             sid=database.database_name
         )
     elif database.db_type == 'mongodb':
-        adapter = MongoAdapter(
+        adapter = MongoDBAdapter(
             host=database.host,
             port=database.port,
             user=database.username,
@@ -209,3 +228,6 @@ def sync_user_with_database(db: Session, mapping: schemas.UserDatabaseMappingCre
         raise HTTPException(status_code=500, detail="Failed to create user in the external database")
     
     return db_mapping
+'''ajout de la fonction get_user_databases pour récupérer les bases de données associées à un utilisateur'''
+def get_user_databases(db: Session, user_id: int): 
+    return db.query(models.ManagedDatabase).join(models.UserDatabaseMapping).filter(models.UserDatabaseMapping.platform_user_id == user_id).all()
