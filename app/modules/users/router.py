@@ -85,6 +85,46 @@ async def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_
 async def read_users_me(current_user: models.User = Depends(get_current_active_user)):
     return current_user
 
+# Routes pour les rôles - PLACÉES AVANT LES ROUTES AVEC PARAMÈTRES
+@router.post("/roles", response_model=schemas.Role)
+async def create_role(role: schemas.RoleCreate, db: Session = Depends(get_db),
+                     current_user: models.User = Depends(get_current_admin_user)):
+    return service.create_role(db=db, role=role)
+
+@router.get("/roles", response_model=List[schemas.Role])
+async def read_roles(skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
+                    current_user: models.User = Depends(get_current_active_user)):
+    roles = service.get_roles(db, skip=skip, limit=limit)
+    return roles
+
+# Routes pour les bases de données gérées - PLACÉES AVANT LES ROUTES AVEC PARAMÈTRES
+@router.post("/databases", response_model=schemas.ManagedDatabase)
+async def create_database(database: schemas.ManagedDatabaseCreate, db: Session = Depends(get_db),
+                         current_user: models.User = Depends(get_current_admin_user)):
+    return service.create_database(db=db, database=database)
+
+@router.get("/databases", response_model=List[schemas.ManagedDatabase])
+async def read_databases(skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
+                        current_user: models.User = Depends(get_current_active_user)):
+    try:
+        databases = service.get_databases(db, skip=skip, limit=limit)
+        return databases
+    except Exception as e:
+        # Enregistrez les détails de l'erreur
+        print(f"Erreur dans read_databases: {str(e)}")
+        # Retournez une erreur plus spécifique
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur de base de données: {str(e)}"
+        )
+
+# Routes pour la synchronisation des utilisateurs - PLACÉE AVANT LES ROUTES AVEC PARAMÈTRES
+@router.post("/sync-with-database", response_model=schemas.UserDatabaseMapping)
+async def sync_user_with_database(mapping: schemas.UserDatabaseMappingCreate, db: Session = Depends(get_db),
+                                 current_user: models.User = Depends(get_current_admin_user)):
+    return service.sync_user_with_database(db=db, mapping=mapping)
+
+# Routes avec paramètres - PLACÉES APRÈS TOUTES LES ROUTES SPÉCIFIQUES
 @router.get("/{user_id}", response_model=schemas.User)
 async def read_user(user_id: int, db: Session = Depends(get_db),
                    current_user: models.User = Depends(get_current_active_user)):
@@ -102,33 +142,3 @@ async def update_user(user_id: int, user: schemas.UserUpdate, db: Session = Depe
 async def delete_user(user_id: int, db: Session = Depends(get_db),
                      current_user: models.User = Depends(get_current_admin_user)):
     return service.delete_user(db=db, user_id=user_id)
-
-# Routes pour les rôles
-@router.post("/roles/", response_model=schemas.Role)
-async def create_role(role: schemas.RoleCreate, db: Session = Depends(get_db),
-                     current_user: models.User = Depends(get_current_admin_user)):
-    return service.create_role(db=db, role=role)
-
-@router.get("/roles/", response_model=List[schemas.Role])
-async def read_roles(skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
-                    current_user: models.User = Depends(get_current_active_user)):
-    roles = service.get_roles(db, skip=skip, limit=limit)
-    return roles
-
-# Routes pour les bases de données gérées
-@router.post("/databases/", response_model=schemas.ManagedDatabase)
-async def create_database(database: schemas.ManagedDatabaseCreate, db: Session = Depends(get_db),
-                         current_user: models.User = Depends(get_current_admin_user)):
-    return service.create_database(db=db, database=database)
-
-@router.get("/databases/", response_model=List[schemas.ManagedDatabase])
-async def read_databases(skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
-                        current_user: models.User = Depends(get_current_active_user)):
-    databases = service.get_databases(db, skip=skip, limit=limit)
-    return databases
-
-# Routes pour la synchronisation des utilisateurs
-@router.post("/sync-with-database/", response_model=schemas.UserDatabaseMapping)
-async def sync_user_with_database(mapping: schemas.UserDatabaseMappingCreate, db: Session = Depends(get_db),
-                                 current_user: models.User = Depends(get_current_admin_user)):
-    return service.sync_user_with_database(db=db, mapping=mapping)
