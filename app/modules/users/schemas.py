@@ -15,7 +15,7 @@ class Role(RoleBase):
     id: int
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Schémas pour ManagedDatabase
 class ManagedDatabaseBase(BaseModel):
@@ -37,12 +37,18 @@ class ManagedDatabase(ManagedDatabaseBase):
     updated_at: datetime
     
     class Config:
-        orm_mode = True
+        from_attibutes = True
+    '''validateurs pour verifier le type de la base de données'''
+    @validator('db_type')
+    def db_type_must_be_valid(cls, v):
+        if v.lower() not in ['mysql', 'oracle', 'mongodb']:
+            raise ValueError('Invalid database type')
+        return v
 
 # Schémas pour User
 class UserBase(BaseModel):
-    username: str
-    email: EmailStr
+    # username: str = Field(..., description="Unique username for the user")
+    email: EmailStr = Field(..., description="Email address of the user")
     full_name: Optional[str] = None
     is_active: Optional[bool] = True
 
@@ -51,7 +57,7 @@ class UserCreate(UserBase):
     roles: List[int] = []
 
 class UserUpdate(BaseModel):
-    username: Optional[str] = None
+    # username: Optional[str] = None
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     is_active: Optional[bool] = None
@@ -66,7 +72,7 @@ class User(UserBase):
     roles: List[Role] = []
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Schémas pour UserDatabaseMapping
 class UserDatabaseMappingBase(BaseModel):
@@ -90,7 +96,7 @@ class UserDatabaseMapping(UserDatabaseMappingBase):
     updated_at: datetime
     
     class Config:
-        orm_mode = True
+        from_attributes= True
 
 # Schéma pour authentification
 class Token(BaseModel):

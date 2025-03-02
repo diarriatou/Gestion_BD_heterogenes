@@ -21,8 +21,8 @@ def get_password_hash(password: str) -> str:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
-def authenticate_user(db: Session, username: str, password: str):
-    user = db.query(models.User).filter(models.User.username == username).first()
+def authenticate_user(db: Session, email: str, password: str):
+    user = db.query(models.User).filter(models.User.email == email).first()
     if not user or not verify_password(password, user.hashed_password):
         return False
     return user
@@ -57,8 +57,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 def get_user(db: Session, user_id: int):
     return db.query(models.User).filter(models.User.id == user_id).first()
 
-def get_user_by_username(db: Session, username: str):
-    return db.query(models.User).filter(models.User.username == username).first()
+# def get_user_by_username(db: Session, username: str):
+#     return db.query(models.User).filter(models.User.username == username).first()
 
 def get_user_by_email(db: Session, email: str):
     return db.query(models.User).filter(models.User.email == email).first()
@@ -70,9 +70,9 @@ def create_user(db: Session, user: schemas.UserCreate):
     hashed_password = get_password_hash(user.password)
     
     # Vérifier si l'utilisateur existe déjà
-    db_user_username = get_user_by_username(db, username=user.username)
-    if db_user_username:
-        raise HTTPException(status_code=400, detail="Username already registered")
+    # db_user_username = get_user_by_username(db, username=user.username)
+    # if db_user_username:
+    #     raise HTTPException(status_code=400, detail="Username already registered")
     
     db_user_email = get_user_by_email(db, email=user.email)
     if db_user_email:
@@ -80,16 +80,23 @@ def create_user(db: Session, user: schemas.UserCreate):
     
     # Créer l'utilisateur
     db_user = models.User(
-        username=user.username,
+        # username=user.username,
         email=user.email,
         hashed_password=hashed_password,
         full_name=user.full_name,
         is_active=user.is_active
     )
+    '''Ajouter une validation des rôles pour s'assurer qu'ils existent avant de les assigner à un utilisateur'''
+    if user.roles:
+        roles = db.query(models.Role).filter(models.Role.id.in_(user.roles)).all()
+        if len(roles) != len(user.roles):
+            raise HTTPException(status_code=400, detail="Invalid role(s)")
+        
     
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+
     
     # Ajouter les rôles
     if user.roles:
@@ -146,19 +153,55 @@ def create_role(db: Session, role: schemas.RoleCreate):
     db.commit()
     db.refresh(db_role)
     return db_role
+'''Ajouter des fonctions pour mettre à jour et supprimer des rôles.'''
+# def update_role(db: Session, role_id: int, role: schemas.RoleUpdate):
+#     db_role = get_role(db, role_id)
+#     if not db_role:
+#         raise HTTPException(status_code=404, detail="Role not found")
+#     db._update_impl(db_role, role.dict(exclude_unset=True))
+#     db.commit()
+#     db.refresh(db_role)
+#     return db_role
 
+def delete_role(db: Session, role_id: int):
+    db_role = get_role(db, role_id)
+    if not db_role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    
+    db.delete(db_role)
+    db.commit()
+    return db_role
+    
 # Service CRUD pour ManagedDatabase
 def get_database(db: Session, database_id: int):
     return db.query(models.ManagedDatabase).filter(models.ManagedDatabase.id == database_id).first()
 
 def get_databases(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.ManagedDatabase).offset(skip).limit(limit).all()
+'''Implémenter une validation des informations de connexion avant de créer une base de données.'''
 
 def create_database(db: Session, database: schemas.ManagedDatabaseCreate):
     db_database = models.ManagedDatabase(**database.dict())
     db.add(db_database)
     db.commit()
     db.refresh(db_database)
+    return db_database
+'''Ajouter des fonctions pour mettre à jour et supprimer des bases de données.'''
+# def update_database(db: Session, database_id: int, database: schemas.ManagedDatabaseUpdate):
+#     db_database = get_database(db, database_id)
+#     if not db_database:
+#         raise HTTPException(status_code=404, detail="Database not found")
+#     db._update_impl(db_database, database.dict(exclude_unset=True))
+#     db.commit()
+#     db.refresh(db_database)
+#     return db_database
+def delete_database(db: Session, database_id: int):
+    db_database = get_database(db, database_id)
+    if not db_database:
+        raise HTTPException(status_code=404, detail="Database not found")
+    
+    db.delete(db_database)
+    db.commit()
     return db_database
 
 # Service pour synchroniser les utilisateurs avec les bases de données externes
