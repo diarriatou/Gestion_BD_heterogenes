@@ -15,7 +15,7 @@ class Role(RoleBase):
     id: int
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Schémas pour ManagedDatabase
 class ManagedDatabaseBase(BaseModel):
@@ -37,7 +37,7 @@ class ManagedDatabase(ManagedDatabaseBase):
     updated_at: datetime
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Schémas pour User
 class UserBase(BaseModel):
@@ -66,7 +66,7 @@ class User(UserBase):
     roles: List[Role] = []
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Schémas pour UserDatabaseMapping
 class UserDatabaseMappingBase(BaseModel):
@@ -90,7 +90,7 @@ class UserDatabaseMapping(UserDatabaseMappingBase):
     updated_at: datetime
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Schéma pour authentification
 class Token(BaseModel):
