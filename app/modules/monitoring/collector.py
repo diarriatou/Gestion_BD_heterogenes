@@ -77,12 +77,10 @@ class MongoDBCollector(BaseCollector):
         self.database = database
         
     def connect(self):
-        return pymongo.MongoClient(
-            host=self.host,
-            port=self.port,
-            username=self.username,
-            password=self.password
-        )
+        connection_string = f"mongodb://{self.host}:{self.port}"
+        if self.username and self.password:
+            connection_string = f"mongodb://{self.username}:{self.password}@{self.host}:{self.port}"
+        return pymongo.MongoClient(connection_string)
     
     def collect_metrics(self) -> Dict[str, Any]:
         try:

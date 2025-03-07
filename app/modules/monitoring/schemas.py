@@ -2,6 +2,24 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 
+
+
+class DatabaseConnectionBase(BaseModel):
+    name: str
+    host: str
+    port: int
+    db_type: str  # MySQL, MongoDB, Oracle
+    username: str
+    password: str
+
+class DatabaseConnectionCreate(DatabaseConnectionBase):
+    pass
+
+class DatabaseConnectionResponse(DatabaseConnectionBase):
+    id: int
+    
+    class Config:
+        from_attributes = True
 class MetricBase(BaseModel):
     cpu_usage: Optional[float] = None
     memory_usage: Optional[float] = None
@@ -19,7 +37,7 @@ class MetricResponse(MetricBase):
     timestamp: datetime
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class AlertBase(BaseModel):
     alert_type: str
@@ -37,7 +55,7 @@ class AlertResponse(AlertBase):
     resolved_at: Optional[datetime] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class AlertRuleBase(BaseModel):
     metric_name: str
@@ -54,7 +72,7 @@ class AlertRuleResponse(AlertRuleBase):
     database_id: int
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class MetricsTimeRange(BaseModel):
     database_id: int

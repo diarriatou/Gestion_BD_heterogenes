@@ -12,7 +12,24 @@ router = APIRouter(
     prefix="/monitoring",
     tags=["Monitoring"]
 )
-
+@router.post("/connections", response_model=schemas.DatabaseConnectionResponse)
+def create_database_connection(connection: schemas.DatabaseConnectionCreate, db: Session = Depends(get_db)):
+    """Register a new database connection for monitoring"""
+    db_connection = DatabaseConnection(
+        name=connection.name,
+        host=connection.host,
+        port=connection.port,
+        db_type=connection.db_type,
+        username=connection.username,
+        password=connection.password,
+        # Ajoutez d'autres champs si nécessaire
+    )
+    
+    db.add(db_connection)
+    db.commit()
+    db.refresh(db_connection)
+    
+    return db_connection
 @router.post("/metrics/collect/{db_id}", response_model=schemas.MetricResponse)
 def collect_metrics(db_id: int, db: Session = Depends(get_db)):
     """Manually trigger metrics collection for a specific database"""
