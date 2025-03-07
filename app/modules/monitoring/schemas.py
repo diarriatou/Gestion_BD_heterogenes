@@ -1,33 +1,62 @@
 from pydantic import BaseModel, Field
+from typing import Optional, List
 from datetime import datetime
-from typing import Optional
 
-class DatabaseMetricSchema(BaseModel):
-    db_type: str = Field(..., example="MongoDB")  # Type de base (MongoDB, MySQL, Oracle…)
-    db_name: str = Field(..., example="test_db")  # Nom de la base surveillée
-    database_size_mb: float = Field(..., example=150.5)  # Taille totale de la base
-    query_per_second: Optional[float] = Field(None, example=25.7)  # Charge de requêtes
-    slow_queries: Optional[int] = Field(None, example=3)  # Nombre de requêtes lentes
-    cpu_usage: Optional[float] = Field(None, example=35.2)  # Utilisation CPU en %
-    memory_usage: Optional[float] = Field(None, example=65.4)  # Utilisation mémoire en %
-    disk_usage: Optional[float] = Field(None, example=80.1)  # Utilisation du disque en %
-    active_connections: Optional[int] = Field(None, example=120)  # Connexions actives
-    uptime: Optional[int] = Field(None, example=86400)  # Temps de disponibilité (en secondes)
-    last_updated: datetime = Field(default_factory=datetime.utcnow)  # Horodatage de la mesure
+class MetricBase(BaseModel):
+    cpu_usage: Optional[float] = None
+    memory_usage: Optional[float] = None
+    disk_usage: Optional[float] = None
+    connections_count: Optional[int] = None
+    query_latency: Optional[float] = None
+    active_transactions: Optional[int] = None
 
+class MetricCreate(MetricBase):
+    database_id: int
+
+class MetricResponse(MetricBase):
+    id: int
+    database_id: int
+    timestamp: datetime
+    
     class Config:
-        schema_extra = {
-            "example": {
-                "db_type": "MongoDB",
-                "db_name": "test_db",
-                "database_size_mb": 150.5,
-                "query_per_second": 25.7,
-                "slow_queries": 3,
-                "cpu_usage": 35.2,
-                "memory_usage": 65.4,
-                "disk_usage": 80.1,
-                "active_connections": 120,
-                "uptime": 86400,
-                "last_updated": "2025-02-18T12:00:00"
-            }
-        }
+        orm_mode = True
+
+class AlertBase(BaseModel):
+    alert_type: str
+    severity: str
+    message: str
+
+class AlertCreate(AlertBase):
+    database_id: int
+
+class AlertResponse(AlertBase):
+    id: int
+    database_id: int
+    timestamp: datetime
+    resolved: bool
+    resolved_at: Optional[datetime] = None
+    
+    class Config:
+        orm_mode = True
+
+class AlertRuleBase(BaseModel):
+    metric_name: str
+    threshold: float
+    comparison: str
+    severity: str
+    enabled: bool = True
+
+class AlertRuleCreate(AlertRuleBase):
+    database_id: int
+
+class AlertRuleResponse(AlertRuleBase):
+    id: int
+    database_id: int
+    
+    class Config:
+        orm_mode = True
+
+class MetricsTimeRange(BaseModel):
+    database_id: int
+    start_time: datetime
+    end_time: Optional[datetime] = None
