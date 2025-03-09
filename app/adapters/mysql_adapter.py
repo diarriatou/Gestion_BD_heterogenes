@@ -6,6 +6,7 @@ from .base import DatabaseAdapter
 class MySQLAdapter(DatabaseAdapter):
     """Adaptateur pour les bases de données MySQL."""
     
+    # Objectif : stocker la configuration de la base de données et gérer la connexion à MySQL.
     def __init__(self, host, port, user, password, database):
         self.config = {
             'host': host,
@@ -19,6 +20,7 @@ class MySQLAdapter(DatabaseAdapter):
     def connect(self):
         """Établit la connexion à la base de données MySQL."""
         try:
+            
             self.connection = pymysql.connect(**self.config)
             return True
         except pymysql.Error as e:
@@ -33,18 +35,22 @@ class MySQLAdapter(DatabaseAdapter):
     
     def get_users(self):
         """Récupère la liste des utilisateurs MySQL."""
+
+        # verifier si la connexion est établie
         if not self.connection:
             self.connect()
         
         try:
             with self.connection.cursor() as cursor:
+                # execution de la requête
                 cursor.execute("SELECT User, Host FROM mysql.user")
                 users = cursor.fetchall()
+                # retourner les résultats sous forme de liste de dictionnaires
                 return [{"username": user[0], "host": user[1]} for user in users]
         except pymysql.Error as e:
             print(f"Erreur lors de la récupération des utilisateurs: {e}")
             return []
-    
+
     def create_user(self, username, password, roles=None):
         """Crée un nouvel utilisateur MySQL avec les rôles spécifiés."""
         if not self.connection:
@@ -65,6 +71,8 @@ class MySQLAdapter(DatabaseAdapter):
                         elif role == 'backup_operator':
                             cursor.execute(f"GRANT SELECT, LOCK TABLES, SHOW VIEW ON *.* TO '{username}'@'%'")
                 
+
+            # valide les changements
                 cursor.execute("FLUSH PRIVILEGES")
                 self.connection.commit()
                 return True

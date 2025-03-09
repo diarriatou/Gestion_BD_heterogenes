@@ -15,10 +15,16 @@ app = FastAPI(
     version="0.1.0"
 )
 
+# Configurez les origines autorisées
+origins = [
+    "http://localhost:3000",  # Frontend local
+    "http://127.0.0.1:3000",
+]
+
 # Configuration CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # À modifier en production
+    allow_origins=origins,  # À modifier en production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -26,7 +32,6 @@ app.add_middleware(
 
 # Inclusion des routers
 app.include_router(users_router, prefix="/api/users", tags=["Users"])
-# app.include_router(monitoring_router, prefix="/api/monitoring", tags=["Monitoring"])
 # app.include_router(backups_router, prefix="/api/backups", tags=["Backups"])
 
 
