@@ -1,144 +1,199 @@
-import time
-from datetime import datetime , timezone
-from pymongo import MongoClient
 import mysql.connector
-import cx_Oracle
+import pymongo
+import oracledb
+import time
+from datetime import datetime
+from typing import Dict, Any, List, Optional
+import logging
 
-class DatabaseCollector:
-    def __init__(self, db_config, storage_config):
-        self.db_config = db_config  # Infos de connexion pour la base surveillée
-        self.storage_config = storage_config  # Infos pour MySQL central
+logger = logging.getLogger(__name__)
 
-    def collect_metrics(self):
-        metrics = {}
+class BaseCollector:
+    def collect_metrics(self) -> Dict[str, Any]:
+        """Base method to collect metrics"""
+        raise NotImplementedError("Subclasses must implement this method")
 
-        if self.db_config['db_type'] == 'MongoDB':
-            metrics = self.collect_mongo_metrics()
-        elif self.db_config['db_type'] == 'MySQL':
-            metrics = self.collect_mysql_metrics()
-        elif self.db_config['db_type'] == 'Oracle':
-            metrics = self.collect_oracle_metrics()
-
-        return metrics
-
-    def collect_mongo_metrics(self):
-        client = MongoClient(self.db_config['host'], self.db_config['port'])
-        db = client[self.db_config['db_name']]
-        stats = db.command("dbStats")
-        database_size = stats['dataSize'] / (1024 * 1024)  # Convertir en Mo
+class MySQLCollector(BaseCollector):
+    def __init__(self, host: str, port: int, username: str, password: str, database: str):
+        self.host = host
+        self.port = port
+        self.username = username
+        self.password = password
+        self.database = database
         
-        return {
-            'db_name': self.db_config['db_name'],
-            'database_size_mb': database_size,
-            'slow_queries': 3,
-            'cpu_usage': 35.2,
-            'memory_usage': 65.4,
-            'disk_usage': 80.1,
-            'active_connections': 120,
-            'uptime': 86400,
-            'last_updated': datetime.now(timezone.utc)
-        }
-
-    def collect_mysql_metrics(self):
-        conn = mysql.connector.connect(
-            host=self.db_config['host'],
-            user=self.db_config['user'],
-            password="",
-            database=self.db_config['db_name']
+    def connect(self):
+        return mysql.connector.connect(
+            host=self.host,
+            port=self.port,
+            user=self.username,
+            password=self.password,
+            database=self.database
         )
-        cursor = conn.cursor()
-        cursor.execute("SELECT table_schema AS db_name, SUM(data_length + index_length) / 1024 / 1024 AS database_size_mb FROM information_schema.tables WHERE table_schema = %s GROUP BY table_schema", (self.db_config['db_name'],))
-        result = cursor.fetchone()
-        database_size = result[1] if result else 0
-
-        return {
-            'db_name': self.db_config['db_name'],
-            'database_size_mb': database_size,
-            'slow_queries': 3,
-            'cpu_usage': 35.2,
-            'memory_usage': 65.4,
-            'disk_usage': 80.1,
-            'active_connections': 120,
-            'uptime': 86400,
-            'last_updated': datetime.now(timezone.utc)
-        }
-
-    def collect_oracle_metrics(self):
-        conn = cx_Oracle.connect(
-            user=self.db_config['system'],
-            password=self.db_config['ipHone6#'],
-            dsn=self.db_config['localhost/unitydb']
-        )
-        cursor = conn.cursor()
-        cursor.execute("SELECT SUM(bytes) / 1024 / 1024 AS database_size_mb FROM dba_data_files")
-        result = cursor.fetchone()
-        database_size = result[0] if result else 0
-
-        return {
-            'db_name': self.db_config['db_name'],
-            'database_size_mb': database_size,
-            'slow_queries': 3,
-            'cpu_usage': 35.2,
-            'memory_usage': 65.4,
-            'disk_usage': 80.1,
-            'active_connections': 120,
-            'uptime': 86400,
-            'last_updated': datetime.now(timezone.utc)
-        }
     
-    def store_metrics(self, metrics):
+    def collect_metrics(self) -> Dict[str, Any]:
         try:
-            conn = mysql.connector.connect(
-                host=self.storage_config['host'],
-                user=self.storage_config['user'],
-                password=self.storage_config['password'],
-                database=self.storage_config['db_name']
-            )
-            cursor = conn.cursor()
-
-            query = """
-            INSERT INTO metrics (db_name, database_size_mb, slow_queries, cpu_usage, 
-                                 memory_usage, disk_usage, active_connections, uptime, last_updated) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            values = (
-                metrics['db_name'],
-                metrics['database_size_mb'],
-                metrics['slow_queries'],
-                metrics['cpu_usage'],
-                metrics['memory_usage'],
-                metrics['disk_usage'],
-                metrics['active_connections'],
-                metrics['uptime'],
-                metrics['last_updated']
-            )
-
-            cursor.execute(query, values)
-            conn.commit()
+            connection = self.connect()
+            cursor = connection.cursor(dictionary=True)
+            
+            # Get CPU and memory usage
+            cursor.execute("SHOW GLOBAL STATUS")
+            status_rows = cursor.fetchall()
+            status = {row['Variable_name']: row['Value'] for row in status_rows}
+            
+            # Get connections count
+            cursor.execute("SELECT COUNT(*) as count FROM information_schema.processlist")
+            connections = cursor.fetchone()['count']
+            
+            # Get query latency (avg)
+            cursor.execute("SELECT AVG(QUERY_TIME) as avg_latency FROM mysql.slow_log WHERE START_TIME > DATE_SUB(NOW(), INTERVAL 5 MINUTE)")
+            latency_row = cursor.fetchone()
+            latency = latency_row['avg_latency'] if latency_row and latency_row['avg_latency'] else 0
+            
             cursor.close()
-            conn.close()
-
-            print("✅ Données stockées avec succès dans db_management !")
-
+            connection.close()
+            
+            return {
+                "cpu_usage": float(status.get('CPU_USAGE', 0)),
+                "memory_usage": float(status.get('MEMORY_USAGE', 0)),
+                "disk_usage": None,  # Requires additional queries
+                "connections_count": connections,
+                "query_latency": float(latency),
+                "active_transactions": int(status.get('ACTIVE_TRANSACTIONS', 0)),
+                "timestamp": datetime.utcnow()
+            }
         except Exception as e:
-            print("❌ Erreur lors de l'insertion :", e)
+            logger.error(f"Error collecting MySQL metrics: {str(e)}")
+            return {
+                "error": str(e),
+                "timestamp": datetime.utcnow()
+            }
 
-# Exemple de config pour la base surveillée et la base centrale
-db_config = {
-    'db_type': 'MySQL',
-    'host': 'localhost',
-    'user': 'root',
-    'password': "",
-    'db_name': 'db_management'
-}
+class MongoDBCollector(BaseCollector):
+    def __init__(self, host: str, port: int, username: str, password: str, database: str):
+        self.host = host
+        self.port = port
+        self.username = username
+        self.password = password
+        self.database = database
+        
+    def connect(self):
+        connection_string = f"mongodb://{self.host}:{self.port}"
+        if self.username and self.password:
+            connection_string = f"mongodb://{self.username}:{self.password}@{self.host}:{self.port}"
+        return pymongo.MongoClient(connection_string)
+    
+    def collect_metrics(self) -> Dict[str, Any]:
+        try:
+            client = self.connect()
+            db = client[self.database]
+            
+            # Get server status
+            server_status = db.command("serverStatus")
+            
+            # Extract metrics
+            connections = server_status.get("connections", {})
+            mem_info = server_status.get("mem", {})
+            opcounters = server_status.get("opcounters", {})
+            
+            client.close()
+            
+            return {
+                "cpu_usage": None,  # MongoDB doesn't provide CPU directly
+                "memory_usage": mem_info.get("resident", 0),
+                "disk_usage": None,  # Requires additional queries
+                "connections_count": connections.get("current", 0),
+                "query_latency": None,  # Requires profiling
+                "active_transactions": opcounters.get("query", 0) + opcounters.get("insert", 0) + opcounters.get("update", 0) + opcounters.get("delete", 0),
+                "timestamp": datetime.utcnow()
+            }
+        except Exception as e:
+            logger.error(f"Error collecting MongoDB metrics: {str(e)}")
+            return {
+                "error": str(e),
+                "timestamp": datetime.utcnow()
+            }
 
-storage_config = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': "",
-    'db_name': 'db_management'
-}
+class OracleCollector(BaseCollector):
+    def __init__(self, host: str, port: int, username: str, password: str, service_name: str):
+        self.host = host
+        self.port = port
+        self.username = username
+        self.password = password
+        self.service_name = service_name
+        
+    def connect(self):
+        dsn = f"{self.host}:{self.port}/{self.service_name}"
+        return oracledb.connect(user=self.username, password=self.password, dsn=dsn)
+    
+    def collect_metrics(self) -> Dict[str, Any]:
+        try:
+            connection = self.connect()
+            cursor = connection.cursor()
+            
+            # Get CPU usage
+            cursor.execute("SELECT value FROM v$sysmetric WHERE metric_name = 'CPU Usage Per Sec' AND group_id = 2")
+            cpu_row = cursor.fetchone()
+            cpu_usage = float(cpu_row[0]) if cpu_row else None
+            
+            # Get memory usage
+            cursor.execute("SELECT round(sum(bytes)/1024/1024,2) FROM v$sgastat")
+            memory_row = cursor.fetchone()
+            memory_usage = float(memory_row[0]) if memory_row else None
+            
+            # Get connections count
+            cursor.execute("SELECT count(*) FROM v$session WHERE type = 'USER'")
+            connection_row = cursor.fetchone()
+            connections = int(connection_row[0]) if connection_row else None
+            
+            # Get active transactions
+            cursor.execute("SELECT count(*) FROM v$transaction")
+            tx_row = cursor.fetchone()
+            transactions = int(tx_row[0]) if tx_row else None
+            
+            cursor.close()
+            connection.close()
+            
+            return {
+                "cpu_usage": cpu_usage,
+                "memory_usage": memory_usage,
+                "disk_usage": None,  # Requires additional queries
+                "connections_count": connections,
+                "query_latency": None,  # Requires additional configuration
+                "active_transactions": transactions,
+                "timestamp": datetime.utcnow()
+            }
+        except Exception as e:
+            logger.error(f"Error collecting Oracle metrics: {str(e)}")
+            return {
+                "error": str(e),
+                "timestamp": datetime.utcnow()
+            }
 
-collector = DatabaseCollector(db_config, storage_config)
-metrics = collector.collect_metrics()
-collector.store_metrics(metrics)
+def get_collector(db_type: str, connection_params: Dict[str, Any]) -> BaseCollector:
+    """Factory function to get the appropriate collector"""
+    if db_type.lower() == "mysql":
+        return MySQLCollector(
+            host=connection_params["host"],
+            port=connection_params["port"],
+            username=connection_params["username"],
+            password=connection_params["password"],
+            database=connection_params.get("database", "")
+        )
+    elif db_type.lower() == "mongodb":
+        return MongoDBCollector(
+            host=connection_params["host"],
+            port=connection_params["port"],
+            username=connection_params["username"],
+            password=connection_params["password"],
+            database=connection_params.get("database", "")
+        )
+    elif db_type.lower() == "oracle":
+        return OracleCollector(
+            host=connection_params["host"],
+            port=connection_params["port"],
+            username=connection_params["username"],
+            password=connection_params["password"],
+            service_name=connection_params.get("service_name", "")
+        )
+    else:
+        raise ValueError(f"Unsupported database type: {db_type}")

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, validator
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from datetime import datetime
 import json
 
@@ -37,8 +37,9 @@ class ManagedDatabase(ManagedDatabaseBase):
     updated_at: datetime
     
     class Config:
-        from_attibutes = True
-    '''validateurs pour verifier le type de la base de données'''
+        from_attributes = True
+
+    # Validateur pour vérifier le type de la base de données
     @validator('db_type')
     def db_type_must_be_valid(cls, v):
         if v.lower() not in ['mysql', 'oracle', 'mongodb']:
@@ -47,7 +48,6 @@ class ManagedDatabase(ManagedDatabaseBase):
 
 # Schémas pour User
 class UserBase(BaseModel):
-    # username: str = Field(..., description="Unique username for the user")
     email: EmailStr = Field(..., description="Email address of the user")
     full_name: Optional[str] = None
     is_active: Optional[bool] = True
@@ -57,7 +57,6 @@ class UserCreate(UserBase):
     roles: List[int] = []
 
 class UserUpdate(BaseModel):
-    # username: Optional[str] = None
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     is_active: Optional[bool] = None
@@ -96,7 +95,7 @@ class UserDatabaseMapping(UserDatabaseMappingBase):
     updated_at: datetime
     
     class Config:
-        from_attributes= True
+        from_attributes = True
 
 # Schéma pour authentification
 class Token(BaseModel):
