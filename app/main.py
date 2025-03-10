@@ -30,13 +30,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-#Configure logging
+
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Inclusion des routers
 app.include_router(users_router, prefix="/api/users", tags=["Users"])
 app.include_router(monitoring_router, prefix="/api/monitoring", tags=["Monitoring"])
+# app.include_router(backups_router, prefix="/api/backups", tags=["Backups"])
+
 # Start metrics collection scheduler
 @app.on_event("startup")
 def startup_event():
@@ -50,7 +53,7 @@ def shutdown_event():
     logger.info("Shutting down application...")
     if hasattr(app.state, "scheduler"):
         app.state.scheduler.shutdown()
-# app.include_router(backups_router, prefix="/api/backups", tags=["Backups"])
+
 @app.get("/")
 async def root():
     return {"message": "Bienvenue sur la plateforme de gestion des bases de données"}
