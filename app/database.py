@@ -13,10 +13,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # Base pour les modèles
 Base = declarative_base()
 
-# Fonction de dépendance pour obtenir la session de BD
+# Fonction de dépendance pour obtenir la session de BDD
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
-        db.close()
+        db.close()  
