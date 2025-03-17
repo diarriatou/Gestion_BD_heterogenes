@@ -3,6 +3,13 @@ import subprocess
 import os
 from .base import DatabaseAdapter
 
+# Configuration de l'adaptateur
+host = "192.168.1.8"
+port = 1521
+user = "user1"
+password = "1234"
+service_name = "orcl"
+
 class OracleAdapter(DatabaseAdapter):
     """Adaptateur pour les bases de données Oracle."""
     def __init__(self, host, port, user, password, service_name):

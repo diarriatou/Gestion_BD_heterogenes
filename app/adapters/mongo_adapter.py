@@ -93,3 +93,4 @@ class MongoDBAdapter(DatabaseAdapter):
             }
         except pymongo.errors.PyMongoError as e:
             return {'status': 'error', 'message': str(e)}
+#pip install pytest mongomock pymongo
