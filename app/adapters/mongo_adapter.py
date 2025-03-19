@@ -1,4 +1,5 @@
 import pymongo
+import os
 from .base import DatabaseAdapter
 
 class MongoDBAdapter(DatabaseAdapter):
