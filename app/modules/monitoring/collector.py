@@ -5,6 +5,8 @@ import time
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 import logging
+from mysql.connector.pooling import MySQLConnectionPool
+
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,16 @@ class MySQLCollector(BaseCollector):
         self.password = password
         self.database = database
         self.db_type = "mysql"  # Ajouter attribut db_type
+        self.pool = MySQLConnectionPool(
+            pool_name="mysql_pool",
+            pool_size=5,
+            host=self.host,
+            port=self.port,
+            user=self.username,
+            password=self.password,
+            database=self.database
+)
+
         
     def connect(self):
         return mysql.connector.connect(
@@ -31,7 +43,7 @@ class MySQLCollector(BaseCollector):
             password=self.password,
             database=self.database
         )
-    
+        return self.pool.get_connection()
     def collect_metrics(self) -> Dict[str, Any]:
         try:
             connection = self.connect()
@@ -186,22 +198,37 @@ def get_collector(db_type: str, connection_params: Dict[str, Any]) -> BaseCollec
             database=connection_params.get("database", ""),
          
         )
-    # elif db_type.lower() == "mongodb":
-    #     return MongoDBCollector(
-    #         host=connection_params["host"],
-    #         port=connection_params["port"],
-    #         username=connection_params["username"],
-    #         password=connection_params["password"],
-    #         database=connection_params.get("database", ""),
+    elif db_type.lower() == "mongodb":
+        return MongoDBCollector(
+            host=connection_params["host"],
+            port=connection_params["port"],
+            username=connection_params["username"],
+            password=connection_params["password"],
+            database=connection_params.get("database", ""),
 
-    #     )
-    # elif db_type.lower() == "oracle":
-    #     return OracleCollector(
-    #         host=connection_params["host"],
-    #         port=connection_params["port"],
-    #         username=connection_params["username"],
-    #         password=connection_params["password"],
-    #         service_name=connection_params.get("service_name", ""),
-    #     )
-    # else:
-    #     raise ValueError(f"Unsupported database type: {db_type}")
+        )
+    elif db_type.lower() == "oracle":
+       return OracleCollector(
+            host=connection_params["host"],
+            port=connection_params["port"],
+            username=connection_params["username"],
+            password=connection_params["password"],
+            service_name=connection_params.get("service_name", ""),
+        )
+    else:
+         raise ValueError(f"Unsupported database type: {db_type}")
+def normalize_metrics(self, raw_metrics: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize metrics to a standard format"""
+    standard_metrics = {
+        "cpu_usage": None,
+        "memory_usage": None,
+        "disk_usage": None,
+        "connections_count": None,
+        "query_latency": None,
+        "active_transactions": None,
+        "timestamp": datetime.utcnow()
+    }
+    
+    # Update with available metrics
+    standard_metrics.update({k: v for k, v in raw_metrics.items() if k in standard_metrics})
+    return standard_metrics

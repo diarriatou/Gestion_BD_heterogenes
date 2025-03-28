@@ -378,4 +378,132 @@ class MetricAnalyzer:
                 recommendations.append("Attention : L'utilisation du disque est élevée. Supprimez les fichiers inutiles et surveillez l'évolution.")
 
         return recommendations
+    
+    def save_metrics_history(self, storage_service):
+        """Sauvegarde l'historique des métriques dans la base de données"""
+        storage_service.save_metrics_history(self.connection_id, self.metrics_history)
+
+@classmethod
+def load_metrics_history(cls, connection_id, db_type, thresholds, storage_service):
+    """Charge l'historique des métriques depuis la base de données"""
+    analyzer = cls(connection_id, db_type, thresholds)
+    analyzer.metrics_history = storage_service.get_metrics_history(connection_id)
+    return analyzer
+
+def detect_anomalies(self, metric_name, sensitivity=2.0):
+    """
+    Détecte les anomalies en utilisant l'écart-type
+    
+    Args:
+        metric_name: Nom de la métrique à analyser
+        sensitivity: Multiplicateur d'écart-type (2.0 = 95% de confiance)
+    """
+    values = [m.get(metric_name) for m in self.metrics_history 
+             if m.get(metric_name) is not None]
+    
+    if len(values) < 10:  # Besoin d'assez de données
+        return []
+    
+    avg = mean(values)
+    std_dev = stdev(values) if len(values) > 1 else 0
+    threshold = avg + (sensitivity * std_dev)
+    
+    anomalies = []
+    for i, val in enumerate(values):
+        if val > threshold:
+            anomalies.append({
+                'index': i,
+                'value': val,
+                'timestamp': self.metrics_history[i]['timestamp'],
+                'deviation': (val - avg) / std_dev if std_dev > 0 else 0
+            })
+    
+    return anomalies
      
+
+
+def find_metric_correlations(self):
+    """Trouve les corrélations entre différentes métriques"""
+    metrics_to_analyze = ['cpu_usage', 'memory_usage', 'connections_count', 'query_latency']
+    results = {}
+    
+    for m1 in metrics_to_analyze:
+        for m2 in metrics_to_analyze:
+            if m1 != m2:
+                correlation = self._calculate_correlation(m1, m2)
+                if abs(correlation) > 0.7:  # Forte corrélation
+                    results[f"{m1}-{m2}"] = correlation
+    
+    return results
+
+def _calculate_correlation(self, metric1, metric2):
+    """Calcule le coefficient de corrélation entre deux métriques"""
+    values1 = []
+    values2 = []
+    
+    for m in self.metrics_history:
+        if m.get(metric1) is not None and m.get(metric2) is not None:
+            values1.append(m.get(metric1))
+            values2.append(m.get(metric2))
+    
+    if len(values1) < 5:
+        return 0
+        
+    # Utilisez numpy pour calculer la corrélation
+    return np.corrcoef(values1, values2)[0, 1]
+def predict_future_value(self, metric_name, hours_ahead=24):
+    """
+    Prédit la valeur future d'une métrique basée sur la tendance actuelle
+    Utilise une régression linéaire simple
+    """
+    values = [(i, m.get(metric_name)) 
+             for i, m in enumerate(self.metrics_history) 
+             if m.get(metric_name) is not None]
+    
+    if len(values) < 5:
+        return None
+    
+    x = np.array([v[0] for v in values])
+    y = np.array([v[1] for v in values])
+    
+    # Régression linéaire simple
+    slope, intercept = np.polyfit(x, y, 1)
+    
+    # Prédire la valeur future
+    next_x = len(self.metrics_history) + (hours_ahead * 3600 / self.collection_interval)
+    predicted_value = slope * next_x + intercept
+    
+    return {
+        'current': y[-1],
+        'predicted': predicted_value,
+        'change_percentage': ((predicted_value - y[-1]) / y[-1]) * 100 if y[-1] != 0 else 0,
+        'hours_ahead': hours_ahead
+    }
+
+
+def adapt_thresholds(self, learning_rate=0.1):
+    """Adapte les seuils en fonction des données historiques"""
+    if len(self.metrics_history) < 20:
+        return  # Pas assez de données
+    
+    for metric_name in ['cpu_usage', 'memory_usage', 'connections_count']:
+        values = [m.get(metric_name) for m in self.metrics_history 
+                 if m.get(metric_name) is not None]
+        
+        if not values:
+            continue
+            
+        # Calcul du 95e percentile
+        p95 = np.percentile(values, 95)
+        
+        # Ajustement du seuil d'avertissement
+        current_warning = self.thresholds.get(metric_name, {}).get('warning')
+        if current_warning and p95 < current_warning * 0.7:
+            # Si le 95e percentile est bien inférieur au seuil, réduire le seuil
+            new_warning = current_warning - (current_warning - p95) * learning_rate
+            self.thresholds[metric_name]['warning'] = new_warning
+        elif p95 > current_warning:
+            # Si le 95e percentile dépasse le seuil, augmenter légèrement
+            new_warning = current_warning + (p95 - current_warning) * learning_rate
+            self.thresholds[metric_name]['warning'] = min(new_warning, 
+                                                        self.thresholds[metric_name]['critical'] * 0.9)

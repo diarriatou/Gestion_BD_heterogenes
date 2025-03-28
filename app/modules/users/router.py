@@ -85,7 +85,7 @@ async def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_
 async def read_users_me(current_user: models.User = Depends(get_current_active_user)):
     return current_user
 
-# Routes pour les rôles - PLACÉES AVANT LES ROUTES AVEC PARAMÈTRES
+# Routes pour les rôles 
 @router.post("/roles", response_model=schemas.Role)
 async def create_role(role: schemas.RoleCreate, db: Session = Depends(get_db),
                     current_user: models.User = Depends(get_current_admin_user)):

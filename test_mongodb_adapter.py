@@ -5,9 +5,9 @@ from app.adapters.mongo_adapter import MongoDBAdapter
 MONGO_CONFIG = {
     "host": "localhost",
     "port": 27017,
-    "database": "admin",
-    "user": "root" ,
-    "password": "password"
+    "database": "unitydb",
+    "user": "admin" ,
+    "password": "admin123"
 }
 
 @pytest.fixture
@@ -20,7 +20,7 @@ def mongodb_adapter():
 
 def test_connection(mongodb_adapter):
     """Test de connexion à la base de données MongoDB."""
-    assert mongodb_adapter.connection is not None
+    assert mongodb_adapter.client is not None
 
 def test_insert_and_delete(mongodb_adapter):
     """Test d'insertion et suppression d'un document."""

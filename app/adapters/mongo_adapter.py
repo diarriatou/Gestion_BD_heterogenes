@@ -24,6 +24,8 @@ class MongoDBAdapter(DatabaseAdapter):
             self.client.close()
             self.client = None
 
+
+    
     def backup(self, destination_path):
         """Sauvegarde la base MongoDB en JSON."""
         try:
@@ -94,3 +96,24 @@ class MongoDBAdapter(DatabaseAdapter):
             }
         except pymongo.errors.PyMongoError as e:
             return {'status': 'error', 'message': str(e)}
+
+def insert(self, collection_name, data):
+    try:
+        result = self.db[collection_name].insert_one(data)
+        return {"status": "success", "inserted_id": result.inserted_id}
+    except pymongo.errors.PyMongoError as e:
+        return {"status": "error", "message": str(e)}
+
+def find(self, collection_name, query):
+    try:
+        data = list(self.db[collection_name].find(query))
+        return {"status": "success", "data": data}
+    except pymongo.errors.PyMongoError as e:
+        return {"status": "error", "message": str(e)}
+
+def delete(self, collection_name, query):
+    try:
+        result = self.db[collection_name].delete_one(query)
+        return {"status": "success", "deleted_count": result.deleted_count}
+    except pymongo.errors.PyMongoError as e:
+        return {"status": "error", "message": str(e)}

@@ -7,7 +7,7 @@ import pytest
 # Paramètres de connexion (modifie selon ton setup)
 DB_USER = "diarra"
 DB_PASSWORD = "passer123"
-DB_DSN = "10.153.33.201:1521/orcl"
+DB_DSN = " 192.168.3.131:1521/orcl"
 conn = cx_Oracle.connect(DB_USER, DB_PASSWORD, DB_DSN)
 @pytest.fixture
 def oracle_connection():
