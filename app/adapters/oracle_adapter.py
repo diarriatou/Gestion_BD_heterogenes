@@ -1,6 +1,7 @@
 import cx_Oracle
 import subprocess
 import os
+from datetime import datetime
 from .base import DatabaseAdapter
 
 class OracleAdapter(DatabaseAdapter):
@@ -41,31 +42,7 @@ class OracleAdapter(DatabaseAdapter):
             print(f"Erreur lors de la récupération des utilisateurs: {e}")
             return []
 
-    def backup(self, destination_path):
-        """Sauvegarde la base de données Oracle avec Data Pump."""
-        try:
-            os.makedirs(os.path.dirname(destination_path), exist_ok=True)
-
-            cmd = f"expdp {self.config['user']}/{self.config['password']}@{self.config['dsn']} DIRECTORY=DATA_PUMP_DIR DUMPFILE={destination_path}"
-            process = subprocess.run(cmd, shell=True, stderr=subprocess.PIPE, check=True)
-
-            return {'status': 'success', 'path': destination_path}
-        except subprocess.SubprocessError as e:
-            return {'status': 'error', 'message': str(e)}
-
-    def restore(self, backup_path):
-        """Restaure la base de données Oracle avec Data Pump."""
-        try:
-            if not os.path.exists(backup_path):
-                return {'status': 'error', 'message': f"Le fichier {backup_path} n'existe pas"}
-
-            cmd = f"impdp {self.config['user']}/{self.config['password']}@{self.config['dsn']} DIRECTORY=DATA_PUMP_DIR DUMPFILE={backup_path}"
-            process = subprocess.run(cmd, shell=True, stderr=subprocess.PIPE, check=True)
-
-            return {'status': 'success', 'restored_from': backup_path}
-        except subprocess.SubprocessError as e:
-            return {'status': 'error', 'message': str(e)}
-
+   
     def create_user(self, username, password):
         """Crée un nouvel utilisateur Oracle."""
         try:
@@ -108,3 +85,51 @@ class OracleAdapter(DatabaseAdapter):
                 }
         except cx_Oracle.DatabaseError as e:
             return {'status': 'error', 'message': str(e)}
+        
+
+    def backup(self, destination_path, backup_type="full"):
+        """Sauvegarde la base de données Oracle à chaud avec RMAN."""
+        try:
+            # Créer le répertoire de destination
+            os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+        
+        # Créer un script RMAN temporaire
+            rman_script = f"""
+            CONFIGURE BACKUP OPTIMIZATION ON;
+            CONFIGURE CONTROLFILE AUTOBACKUP ON;
+        
+            BACKUP AS COMPRESSED BACKUPSET
+                DATABASE
+                TAG 'FULL_DB_BACKUP'
+                FORMAT '{destination_path}_%U';
+          
+            BACKUP ARCHIVELOG ALL DELETE INPUT;
+        """
+        
+            script_path = f"{destination_path}.rman"
+            with open(script_path, 'w') as f:
+                f.write(rman_script)
+        
+        # Exécuter RMAN
+            cmd = [
+            'rman',
+            f'target={self.config["user"]}/{self.config["password"]}@{self.config["dsn"]}',
+            f'cmdfile={script_path}'
+            ]
+        
+            process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        
+        # Nettoyer le script temporaire
+            os.remove(script_path)
+        
+            return {
+            'status': 'success',
+            'path': f"{destination_path}_*",  # RMAN crée plusieurs fichiers avec suffixes
+            'database': self.config["dsn"].split("/")[-1],
+            'timestamp': datetime.now().isoformat()
+        }
+        except subprocess.SubprocessError as e:
+            return {
+            'status': 'error',
+            'message': str(e)
+        }

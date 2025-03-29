@@ -1,6 +1,7 @@
 import pymysql
 import subprocess
 import os
+from datetime import datetime
 from .base import DatabaseAdapter
 
 class MySQLAdapter(DatabaseAdapter):
@@ -132,66 +133,172 @@ class MySQLAdapter(DatabaseAdapter):
             print(f"Erreur lors de la récupération des métriques: {e}")
             return metrics
     
-    def backup(self, destination_path):
-        """Exécute une sauvegarde de la base de données MySQL."""
+    def backup(self, destination_path, backup_type="full"):
+        """
+        Exécute une sauvegarde à chaud de la base de données MySQL.
+        
+        Args:
+            destination_path: Chemin où enregistrer la sauvegarde
+            backup_type: Type de sauvegarde ('full', 'incremental', 'differential')
+        
+        Returns:
+            dict: Résultat de l'opération de sauvegarde
+        """
         try:
-            # Création du répertoire de destination si nécessaire
+        # Création du répertoire de destination si nécessaire
             os.makedirs(os.path.dirname(destination_path), exist_ok=True)
-            
-            # Construction de la commande mysqldump
+        
+        # Construction de la commande mysqldump avec options pour sauvegarde à chaud
             cmd = [
-                'mysqldump',
-                f'--host={self.config["host"]}',
-                f'--port={self.config["port"]}',
-                f'--user={self.config["user"]}',
-                f'--password={self.config["password"]}',
-                '--add-drop-database',
-                '--databases', self.config['database']
-            ]
-            
-            # Exécution de la commande et redirection de la sortie vers le fichier
+            'mysqldump',
+            f'--host={self.config["host"]}',
+            f'--port={self.config["port"]}',
+            f'--user={self.config["user"]}',
+            f'--password={self.config["password"]}',
+            '--add-drop-database',
+            '--single-transaction',  # Garantit la cohérence des données pour InnoDB sans verrouiller les tables
+            '--flush-logs',          # Vide les logs binaires pour permettre une restauration point-in-time
+            '--master-data=2',       # Inclut la position du binlog sous forme de commentaire
+            '--triggers',            # Inclut les triggers
+            '--routines',            # Inclut les procédures stockées et fonctions
+            '--events',              # Inclut les événements programmés
+            '--skip-lock-tables',    # Évite de verrouiller les tables (utilisé avec single-transaction)
+            '--databases', self.config['database']
+        ]
+        
+        # Si c'est une sauvegarde incrémentielle, utilisez les binlogs
+            if backup_type == "incremental":
+            # Enregistrez la position actuelle du binlog pour une utilisation ultérieure
+                binlog_info = self._get_binlog_position()
+                metadata_path = f"{destination_path}.metadata"
+            with open(metadata_path, 'w') as meta_file:
+                meta_file.write(f"BINLOG_FILE={binlog_info['file']}\n")
+                meta_file.write(f"BINLOG_POS={binlog_info['position']}\n")
+                meta_file.write(f"BACKUP_TYPE={backup_type}\n")
+        
+        # Exécution de la commande et redirection de la sortie vers le fichier
             with open(destination_path, 'w') as f:
                 process = subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, check=True)
-            
+        
+        # Compresser le fichier pour économiser de l'espace
+            compressed_path = f"{destination_path}.gz"
+            subprocess.run(['gzip', '-f', destination_path], check=True)
+        
             return {
-                'status': 'success',
-                'path': destination_path,
-                'database': self.config['database'],
-                'size': os.path.getsize(destination_path)
-            }
+            'status': 'success',
+            'path': compressed_path,
+            'database': self.config['database'],
+            'type': backup_type,
+            'size': os.path.getsize(compressed_path),
+            'timestamp': datetime.now().isoformat()
+        }
         except (subprocess.SubprocessError, OSError) as e:
             return {
-                'status': 'error',
-                'message': str(e)
-            }
+            'status': 'error',
+            'message': str(e)
+        }
+
+def _get_binlog_position(self):
+    """Récupère la position actuelle du binlog pour les sauvegardes incrémentielles."""
+    if not self.connection:
+        self.connect()
     
-    def restore(self, backup_path):
-        """Restaure une base de données MySQL à partir d'une sauvegarde."""
-        try:
-            # Vérification de l'existence du fichier
-            if not os.path.exists(backup_path):
+    try:
+        with self.connection.cursor() as cursor:
+            cursor.execute("SHOW MASTER STATUS")
+            result = cursor.fetchone()
+            if result:
+                return {
+                    'file': result[0],
+                    'position': result[1]
+                }
+            return None
+    except pymysql.Error as e:
+        print(f"Erreur lors de la récupération de la position du binlog: {e}")
+        return None
+
+def restore(self, backup_path, point_in_time=None):
+    """
+    Restaure une base de données MySQL à partir d'une sauvegarde.
+    
+    Args:
+        backup_path: Chemin du fichier de sauvegarde
+        point_in_time: Pour les restaurations point-in-time (datetime)
+    
+    Returns:
+        dict: Résultat de l'opération de restauration
+    """
+    try:
+        # Vérification que le fichier existe
+        if not os.path.exists(backup_path):
+            if os.path.exists(f"{backup_path}.gz"):
+                # Décompresser le fichier
+                subprocess.run(['gunzip', '-f', f"{backup_path}.gz"], check=True)
+            else:
                 return {'status': 'error', 'message': f"Le fichier de sauvegarde {backup_path} n'existe pas"}
+        
+        # Construction de la commande mysql
+        cmd = [
+            'mysql',
+            f'--host={self.config["host"]}',
+            f'--port={self.config["port"]}',
+            f'--user={self.config["user"]}',
+            f'--password={self.config["password"]}'
+        ]
+        
+        # Exécution de la commande avec le contenu du fichier en entrée
+        with open(backup_path, 'r') as f:
+            process = subprocess.run(cmd, stdin=f, stderr=subprocess.PIPE, check=True)
+        
+        # Si une restauration point-in-time est demandée
+        if point_in_time and os.path.exists(f"{backup_path}.metadata"):
+            with open(f"{backup_path}.metadata", 'r') as meta_file:
+                metadata = {}
+                for line in meta_file:
+                    key, value = line.strip().split('=', 1)
+                    metadata[key] = value
             
-            # Construction de la commande mysql
-            cmd = [
-                'mysql',
-                f'--host={self.config["host"]}',
-                f'--port={self.config["port"]}',
-                f'--user={self.config["user"]}',
-                f'--password={self.config["password"]}'
-            ]
-            
-            # Exécution de la commande avec le contenu du fichier en entrée
-            with open(backup_path, 'r') as f:
-                process = subprocess.run(cmd, stdin=f, stderr=subprocess.PIPE, check=True)
-            
-            return {
-                'status': 'success',
-                'database': self.config['database'],
-                'restored_from': backup_path
-            }
-        except (subprocess.SubprocessError, OSError) as e:
-            return {
-                'status': 'error',
-                'message': str(e)
-            }
+            # Restauration à partir des binlogs jusqu'au point-in-time spécifié
+            if 'BINLOG_FILE' in metadata and 'BINLOG_POS' in metadata:
+                self._apply_binlogs(metadata['BINLOG_FILE'], 
+                                   metadata['BINLOG_POS'],
+                                   point_in_time)
+        
+        return {
+            'status': 'success',
+            'database': self.config['database'],
+            'restored_from': backup_path,
+            'point_in_time': point_in_time.isoformat() if point_in_time else None
+        }
+    except (subprocess.SubprocessError, OSError) as e:
+        return {
+            'status': 'error',
+            'message': str(e)
+        }
+
+def _apply_binlogs(self, binlog_file, binlog_pos, point_in_time):
+    """Applique les binlogs pour une restauration point-in-time."""
+    # Convertir le datetime en format mysql
+    time_str = point_in_time.strftime('%Y-%m-%d %H:%M:%S')
+    
+    cmd = [
+        'mysqlbinlog',
+        f'--host={self.config["host"]}',
+        f'--user={self.config["user"]}',
+        f'--password={self.config["password"]}',
+        f'--start-position={binlog_pos}',
+        f'--stop-datetime="{time_str}"',
+        binlog_file
+    ]
+    
+    # Rediriger la sortie vers mysql
+    mysqlbinlog_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    mysql_cmd = [
+        'mysql',
+        f'--host={self.config["host"]}',
+        f'--user={self.config["user"]}',
+        f'--password={self.config["password"]}',
+        self.config['database']
+    ]
+    subprocess.run(mysql_cmd, stdin=mysqlbinlog_process.stdout, check=True)
+    mysqlbinlog_process.stdout.close()

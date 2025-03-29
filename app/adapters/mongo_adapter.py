@@ -1,5 +1,7 @@
 import pymongo
 import os
+import subprocess
+from datetime import datetime
 from .base import DatabaseAdapter
 
 class MongoDBAdapter(DatabaseAdapter):
@@ -23,45 +25,6 @@ class MongoDBAdapter(DatabaseAdapter):
         if self.client:
             self.client.close()
             self.client = None
-
-
-    
-    def backup(self, destination_path):
-        """Sauvegarde la base MongoDB en JSON."""
-        try:
-            import json
-            os.makedirs(os.path.dirname(destination_path), exist_ok=True)
-
-            collections = self.db.list_collection_names()
-            backup_data = {}
-            
-            for collection in collections:
-                data = list(self.db[collection].find({}, {"_id": 0}))
-                backup_data[collection] = data
-            
-            with open(destination_path, 'w') as f:
-                json.dump(backup_data, f, indent=4)
-
-            return {'status': 'success', 'path': destination_path}
-        except Exception as e:
-            return {'status': 'error', 'message': str(e)}
-
-    def restore(self, backup_path):
-        """Restaure la base MongoDB depuis un fichier JSON."""
-        try:
-            import json
-            if not os.path.exists(backup_path):
-                return {'status': 'error', 'message': f"Le fichier {backup_path} n'existe pas"}
-
-            with open(backup_path, 'r') as f:
-                backup_data = json.load(f)
-            
-            for collection, data in backup_data.items():
-                self.db[collection].insert_many(data)
-            
-            return {'status': 'success', 'restored_from': backup_path}
-        except Exception as e:
-            return {'status': 'error', 'message': str(e)}
 
     def create_user(self, username, password):
         """Crée un utilisateur MongoDB."""
@@ -117,3 +80,48 @@ def delete(self, collection_name, query):
         return {"status": "success", "deleted_count": result.deleted_count}
     except pymongo.errors.PyMongoError as e:
         return {"status": "error", "message": str(e)}
+
+
+def backup(self, destination_path, backup_type="full"):
+    """Sauvegarde la base MongoDB à chaud avec mongodump."""
+    try:
+        # Créer le répertoire de destination
+        os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+        
+        # Construire la commande mongodump
+        db_name = self.uri.split("/")[-1]
+        
+        # Extraire les composants de l'URI
+        parts = self.uri.split("@")
+        auth = parts[0].replace("mongodb://", "")
+        host_part = parts[1].split("/")[0]
+        
+        cmd = [
+            'mongodump',
+            f'--uri={self.uri}',
+            f'--out={destination_path}',
+            '--oplog'  # Option clé pour la sauvegarde à chaud
+        ]
+        
+        # Exécuter mongodump
+        process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        
+        # Compresser le répertoire de sortie
+        compressed_path = f"{destination_path}.tar.gz"
+        subprocess.run(['tar', '-czf', compressed_path, destination_path], check=True)
+        
+        # Nettoyer le répertoire original
+        subprocess.run(['rm', '-rf', destination_path], check=True)
+        
+        return {
+            'status': 'success',
+            'path': compressed_path,
+            'database': db_name,
+            'size': os.path.getsize(compressed_path),
+            'timestamp': datetime.now().isoformat()
+        }
+    except subprocess.SubprocessError as e:
+        return {
+            'status': 'error',
+            'message': str(e)
+        }
