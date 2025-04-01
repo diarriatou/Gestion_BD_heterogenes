@@ -19,7 +19,7 @@ class BackupSchedule(Base):
     __tablename__ = "backup_schedules"
     
     id = Column(Integer, primary_key=True, index=True)
-    database_id = Column(Integer, ForeignKey("managed_databases.id"), nullable=False)
+    database_id = Column(Integer, ForeignKey("database_connections.id"), nullable=False)
     name = Column(String(100), nullable=False)
     backup_type = Column(Enum(BackupType), default=BackupType.FULL)
     frequency = Column(String(50), nullable=False)  # cron expression
@@ -29,7 +29,7 @@ class BackupSchedule(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
     # Relations
-    database = relationship("ManagedDatabase", back_populates="backup_schedules")
+    database = relationship("DatabaseConnection", back_populates="backup_schedules")
     backups = relationship("Backup", back_populates="schedule")
 
 class Backup(Base):
@@ -37,7 +37,7 @@ class Backup(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     schedule_id = Column(Integer, ForeignKey("backup_schedules.id"), nullable=True)
-    database_id = Column(Integer, ForeignKey("managed_databases.id"), nullable=False)
+    database_id = Column(Integer, ForeignKey("database_connections.id"), nullable=False)
     backup_type = Column(Enum(BackupType), default=BackupType.FULL)
     file_path = Column(String(255), nullable=True)
     file_size = Column(Integer, nullable=True)  # taille en bytes
@@ -49,4 +49,4 @@ class Backup(Base):
     
     # Relations
     schedule = relationship("BackupSchedule", back_populates="backups")
-    database = relationship("ManagedDatabase", back_populates="backups")
+    database = relationship("DatabaseConnection", back_populates="backups")
