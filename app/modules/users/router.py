@@ -85,10 +85,10 @@ async def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_
 async def read_users_me(current_user: models.User = Depends(get_current_active_user)):
     return current_user
 
-# Routes pour les rôles - PLACÉES AVANT LES ROUTES AVEC PARAMÈTRES
+# Routes pour les rôles 
 @router.post("/roles", response_model=schemas.Role)
 async def create_role(role: schemas.RoleCreate, db: Session = Depends(get_db),
-                     current_user: models.User = Depends(get_current_admin_user)):
+                    current_user: models.User = Depends(get_current_admin_user)):
     return service.create_role(db=db, role=role)
 
 @router.get("/roles", response_model=List[schemas.Role])
@@ -117,7 +117,6 @@ async def read_databases(skip: int = 0, limit: int = 100, db: Session = Depends(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erreur de base de données: {str(e)}"
         )
-
 # Routes pour la synchronisation des utilisateurs - PLACÉE AVANT LES ROUTES AVEC PARAMÈTRES
 @router.post("/sync-with-database", response_model=schemas.UserDatabaseMapping)
 async def sync_user_with_database(mapping: schemas.UserDatabaseMappingCreate, db: Session = Depends(get_db),

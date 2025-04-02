@@ -16,6 +16,10 @@ class DatabaseConnection(Base):
     metrics = relationship("Metric", back_populates="database")
     alerts = relationship("Alert", back_populates="database")
 
+    
+    backup_schedules = relationship("BackupSchedule", back_populates="database")
+    backups = relationship("Backup", back_populates="database")
+
 class Metric(Base):
     __tablename__ = "metrics"
     

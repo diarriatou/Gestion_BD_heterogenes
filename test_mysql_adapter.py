@@ -24,7 +24,7 @@ def test_connection(mysql_adapter):
 
 def test_create_and_delete_user(mysql_adapter):
     """Test de création et suppression d'un utilisateur."""
-    username = "test_user"
+    username = "diarra_user"
     password = "test_password"
 
     assert mysql_adapter.create_user(username, password, ["read_only"]) == True

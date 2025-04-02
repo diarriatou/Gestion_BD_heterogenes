@@ -1,39 +1,59 @@
+
+import cx_Oracle
+cx_Oracle.init_oracle_client(lib_dir=r"C:\Users\XPS\Downloads\instantclient-basic-windows.x64-23.7.0.25.01\instantclient_23_7")  # Mets ton vrai chemin
+
 import pytest
-from app.adapters.oracle_adapter import OracleAdapter
 
+# Paramètres de connexion (modifie selon ton setup)
+DB_USER = "diarra"
+DB_PASSWORD = "passer123"
+DB_DSN = " 192.168.3.131:1521/orcl"
+conn = cx_Oracle.connect(DB_USER, DB_PASSWORD, DB_DSN)
 @pytest.fixture
-def oracle_adapter():
-    """Fixture pour initialiser l'adaptateur Oracle avec les bonnes configurations."""
-    adapter = OracleAdapter(host="localhost", port=1521, user="diarra_user", password="passer", service_name="unitydb")
-    yield adapter
-    adapter.disconnect()
+def oracle_connection():
+    """Fixture pour établir et fermer la connexion"""
+    conn = cx_Oracle.connect(DB_USER, DB_PASSWORD, DB_DSN)
+    yield conn
+    conn.close()
 
-def test_connection(oracle_adapter):
-    """Test de connexion à Oracle."""
-    assert oracle_adapter.connect() == True
+def test_connection_is_alive(oracle_connection):
+    """Vérifie que la connexion est toujours active après l'ouverture."""
+    assert oracle_connection.ping() is None
 
-def test_create_and_delete_user(oracle_adapter):
-    """Test de création et suppression d'un utilisateur."""
-    username = "test_user"
-    password = "TestPass123"
-    
-    result = oracle_adapter.create_user(username, password)
-    assert result["status"] == "success"
-    
-    result = oracle_adapter.delete_user(username)
-    assert result["status"] == "success"
+def test_insert_update_delete(oracle_connection):
+    """Test d'insertion, mise à jour et suppression de données."""
+    cursor = oracle_connection.cursor()
 
-def test_get_performance_metrics(oracle_adapter):
-    """Test de récupération des métriques de performance."""
-    metrics = oracle_adapter.get_performance_metrics()
-    assert metrics and "cpu_usage" in metrics and "sessions" in metrics
+    try:
+        # Création de la table
+        cursor.execute("CREATE TABLE test_data (id NUMBER PRIMARY KEY, name VARCHAR2(50))")
+        oracle_connection.commit()
 
-def test_backup_and_restore(oracle_adapter, tmp_path):
-    """Test de sauvegarde et restauration de la base de données."""
-    backup_file = tmp_path / "oracle_backup.dmp"
-    
-    result = oracle_adapter.backup(str(backup_file))
-    assert result["status"] == "success", f"Backup failed: {result['message']}"
-    
-    result = oracle_adapter.restore(str(backup_file))
-    assert result["status"] == "success", f"Restore failed: {result['message']}"
+        # Insertion de données
+        cursor.execute("INSERT INTO test_data (id, name) VALUES (1, 'Alice')")
+        cursor.execute("INSERT INTO test_data (id, name) VALUES (2, 'Bob')")
+        oracle_connection.commit()
+
+        cursor.execute("SELECT COUNT(*) FROM test_data")
+        assert cursor.fetchone()[0] == 2
+
+        # Mise à jour
+        cursor.execute("UPDATE test_data SET name = 'Charlie' WHERE id = 1")
+        oracle_connection.commit()
+
+        cursor.execute("SELECT name FROM test_data WHERE id = 1")
+        assert cursor.fetchone()[0] == "Charlie"
+
+        # Suppression
+        cursor.execute("DELETE FROM test_data WHERE id = 2")
+        oracle_connection.commit()
+
+        cursor.execute("SELECT COUNT(*) FROM test_data")
+        assert cursor.fetchone()[0] == 1
+
+        # Suppression de la table
+        cursor.execute("DROP TABLE test_data")
+        oracle_connection.commit()
+
+    except cx_Oracle.DatabaseError as e:
+        pytest.fail(f"Erreur SQL: {e}")

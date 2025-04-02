@@ -17,7 +17,7 @@ def collect_metrics_job():
     try:
         # Get all active database connections
         connections = db.query(DatabaseConnection).all()
-        
+       
         for connection in connections:
             try:
                 # Create collector for specific database type
@@ -27,13 +27,15 @@ def collect_metrics_job():
                     "username": connection.username,
                     "password": connection.password,
                     # Additional parameters depending on db type
-                    "database": "information_schema" if connection.db_type.lower() == "mysql" else "",
-                    "service_name": "" if connection.db_type.lower() != "oracle" else "XE"  # Default service name
+                    "database": ("information_schema" if connection.db_type.lower() == "mysql" 
+                        else "admin" if connection.db_type.lower() == "mongodb"  # Utiliser "admin" ou une autre DB valide
+                        else ""),
+                    "service_name": "orcl" if connection.db_type.lower() != "oracle" else "XE"  # Default service name
                 }
-                
+               
                 collector = get_collector(connection.db_type, connection_params)
                 metrics_data = collector.collect_metrics()
-                
+               
                 # Store metrics in database
                 metric = models.Metric(
                     database_id=connection.id,
@@ -45,31 +47,36 @@ def collect_metrics_job():
                     active_transactions=metrics_data.get("active_transactions"),
                     timestamp=metrics_data.get("timestamp", datetime.utcnow())
                 )
-                
+               
                 db.add(metric)
                 db.commit()
+               
+                # Corriger cette partie - Utiliser l'ID de la connexion réelle et passer le type de DB
+                analyzer = MetricAnalyzer(connection_id=connection.id, db_type=connection.db_type)
                 
-                # Analyze metrics and generate alerts
-                analyzer = MetricAnalyzer(db)
-                alerts = analyzer.analyze_metrics(connection.id, metrics_data)
-                resolved = analyzer.check_recovery(connection.id, metrics_data)
+                # Ne passer que metrics_data à analyze_metrics comme défini dans la classe MetricAnalyzer
+                alerts = analyzer.analyze_metrics(metrics_data)
+                
+                # Pour la méthode check_recovery, vous devez l'ajouter à la classe MetricAnalyzer
+                # Si cette méthode n'existe pas, commentez ou supprimez la ligne suivante
+                # resolved = analyzer.check_recovery(metrics_data)
                 
                 if alerts:
                     logger.info(f"Generated {len(alerts)} alerts for database {connection.name}")
-                
-                if resolved:
-                    logger.info(f"Resolved {len(resolved)} alerts for database {connection.name}")
-                
+               
+                # Commentez ou supprimez cette partie si check_recovery n'existe pas
+                # if resolved:
+                #     logger.info(f"Resolved {len(resolved)} alerts for database {connection.name}")
+               
             except Exception as e:
                 logger.error(f"Error collecting metrics for database {connection.name}: {str(e)}")
                 db.rollback()
-    
+   
     except Exception as e:
         logger.error(f"Error in metrics collection job: {str(e)}")
-    
+   
     finally:
         db.close()
-
 def start_scheduler():
     """Start the background scheduler"""
     scheduler = BackgroundScheduler()
@@ -77,7 +84,7 @@ def start_scheduler():
     # Add job to collect metrics every minute
     scheduler.add_job(
         collect_metrics_job,
-        IntervalTrigger(minutes=1),
+        IntervalTrigger(minutes=60),
         id="collect_metrics_job",
         replace_existing=True
     )
