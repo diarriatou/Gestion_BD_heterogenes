@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, T
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
+from typing import Optional
 import enum
 
 class BackupStatus(enum.Enum):
@@ -23,7 +24,7 @@ class BackupSchedule(Base):
     name = Column(String(100), nullable=False)
     backup_type = Column(Enum(BackupType), default=BackupType.FULL)
     frequency = Column(String(50), nullable=False)  # cron expression
-    retention_days = Column(Integer, default=30)
+    retention_days: Optional[int] = 30
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
