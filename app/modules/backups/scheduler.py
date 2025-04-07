@@ -1,10 +1,8 @@
-# scheduler.py
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy.orm import Session
 import logging
 from datetime import datetime
-
 from app.database import SessionLocal
 from app.modules.backups.models import BackupSchedule, BackupType, BackupStatus
 from app.modules.backups.service import create_backup, execute_backup
@@ -31,6 +29,10 @@ def run_scheduled_backup(schedule_id):
         
         logger.info(f"Sauvegarde planifiée terminée: {schedule.name}, statut: {backup.status}")
     except Exception as e:
+        # En cas d'erreur, mettre à jour le statut de la sauvegarde
+        if schedule:
+            schedule.status = BackupStatus.FAILED
+            db.commit()
         logger.error(f"Erreur lors de l'exécution de la sauvegarde planifiée: {str(e)}")
     finally:
         db.close()

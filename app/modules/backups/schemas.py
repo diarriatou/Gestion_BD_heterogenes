@@ -6,7 +6,7 @@ from datetime import datetime
 class BackupBase(BaseModel):
     database_id: int
     backup_type: str = "full"
-
+    retention_days: Optional[int] = 30
 class BackupCreate(BackupBase):
     pass
 
