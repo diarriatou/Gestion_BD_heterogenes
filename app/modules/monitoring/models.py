@@ -15,6 +15,7 @@ class DatabaseConnection(Base):
     password = Column(String(255), nullable=False)
     metrics = relationship("Metric", back_populates="database")
     alerts = relationship("Alert", back_populates="database")
+    database_name = Column(String(100), nullable=False)
 
     
     backup_schedules = relationship("BackupSchedule", back_populates="database")

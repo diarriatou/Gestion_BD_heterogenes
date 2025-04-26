@@ -1,20 +1,22 @@
-
 import cx_Oracle
 cx_Oracle.init_oracle_client(lib_dir=r"C:\Users\XPS\Downloads\instantclient-basic-windows.x64-23.7.0.25.01\instantclient_23_7")  # Mets ton vrai chemin
-
 import pytest
 
 # Paramètres de connexion (modifie selon ton setup)
 DB_USER = "diarra"
 DB_PASSWORD = "passer123"
-DB_DSN = " 192.168.3.131:1521/orcl"
+DB_DSN = "10.153.33.201:1521/orcl"
 conn = cx_Oracle.connect(DB_USER, DB_PASSWORD, DB_DSN)
 @pytest.fixture
 def oracle_connection():
     """Fixture pour établir et fermer la connexion"""
-    conn = cx_Oracle.connect(DB_USER, DB_PASSWORD, DB_DSN)
-    yield conn
-    conn.close()
+    try:
+        conn = cx_Oracle.connect(DB_USER, DB_PASSWORD, DB_DSN)
+        yield conn
+        conn.close()
+        
+    except cx_Oracle.DatabaseError as e:
+        pytest.fail(f"Erreur de connexion: {e}")
 
 def test_connection_is_alive(oracle_connection):
     """Vérifie que la connexion est toujours active après l'ouverture."""

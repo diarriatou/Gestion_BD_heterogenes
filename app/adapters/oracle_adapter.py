@@ -90,46 +90,58 @@ class OracleAdapter(DatabaseAdapter):
     def backup(self, destination_path, backup_type="full"):
         """Sauvegarde la base de données Oracle à chaud avec RMAN."""
         try:
+            # Vérifier que la connexion est établie
+            if not self.connection and not self.connect():
+                return {'status': 'error', 'message': 'Impossible de se connecter à la base de données'}
+            
             # Créer le répertoire de destination
             os.makedirs(os.path.dirname(destination_path), exist_ok=True)
-        
-        # Créer un script RMAN temporaire
+            
+            # Créer un script RMAN temporaire
             rman_script = f"""
             CONFIGURE BACKUP OPTIMIZATION ON;
             CONFIGURE CONTROLFILE AUTOBACKUP ON;
-        
+            
             BACKUP AS COMPRESSED BACKUPSET
                 DATABASE
                 TAG 'FULL_DB_BACKUP'
                 FORMAT '{destination_path}_%U';
-          
+              
             BACKUP ARCHIVELOG ALL DELETE INPUT;
-        """
-        
+            """
+            
             script_path = f"{destination_path}.rman"
             with open(script_path, 'w') as f:
                 f.write(rman_script)
-        
-        # Exécuter RMAN
+            
+            # Modifier la façon dont vous exécutez RMAN
+            # Utiliser le format Oracle standard pour la connexion
+            user = self.config["user"]
+            password = self.config["password"]
+            dsn = self.config["dsn"]
+            
             cmd = [
-            'rman',
-            f'target={self.config["user"]}/{self.config["password"]}@{self.config["dsn"]}',
-            f'cmdfile={script_path}'
+                'rman',
+                f'target={user}/{password}@{dsn}',
+                f'cmdfile={script_path}'
             ]
-        
-            process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
-        
-        # Nettoyer le script temporaire
+            
+            process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            
+            if process.returncode != 0:
+                raise subprocess.SubprocessError(f"RMAN a échoué avec le code {process.returncode}: {process.stderr}")
+            
+            # Nettoyer le script temporaire
             os.remove(script_path)
-        
+            
             return {
-            'status': 'success',
-            'path': f"{destination_path}_*",  # RMAN crée plusieurs fichiers avec suffixes
-            'database': self.config["dsn"].split("/")[-1],
-            'timestamp': datetime.now().isoformat()
-        }
-        except subprocess.SubprocessError as e:
+                'status': 'success',
+                'path': f"{destination_path}_*",  # RMAN crée plusieurs fichiers avec suffixes
+                'database': dsn.split("/")[-1],
+                'timestamp': datetime.now().isoformat()
+            }
+        except Exception as e:
             return {
-            'status': 'error',
-            'message': str(e)
-        }
+                'status': 'error',
+                'message': str(e)
+            }

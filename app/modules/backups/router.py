@@ -63,7 +63,7 @@ async def get_backups(
     if status:
         query = query.filter(Backup.status == status)
     
-    backups = query.order_by(Backup.created_at.desc()).limit(limit).all()
+    backups = query.order_by(Backup.started_at.desc()).limit(limit).all()
     return backups
 
 @router.post("/backups/{backup_id}/restore", response_model=schemas.RestoreResponse)
