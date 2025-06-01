@@ -34,7 +34,8 @@ class DatabaseAdapter:
             self.connection_params = connection_params
             self.backup_dir = backup_dir
         
-    # Créer le répertoire de sauvegarde s'il n'existe pas
+    
+     # Créer le répertoire de sauvegarde s'il n'existe pas
             os.makedirs(backup_dir, exist_ok=True)
     
     def generate_backup_filename(self, db_name):

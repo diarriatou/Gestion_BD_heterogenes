@@ -420,8 +420,6 @@ def detect_anomalies(self, metric_name, sensitivity=2.0):
     
     return anomalies
      
-
-
 def find_metric_correlations(self):
     """Trouve les corrélations entre différentes métriques"""
     metrics_to_analyze = ['cpu_usage', 'memory_usage', 'connections_count', 'query_latency']
