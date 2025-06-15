@@ -1,0 +1,44 @@
+{
+  "databases": {
+    "mysql": {
+      "name": "MySQL Production",
+      "type": "mysql",
+      "host": "localhost",
+      "port": 3306,
+      "user": "root",
+      "password": "password",
+      "database": "gestion_bd_heterogenes",
+      "enabled": true
+    },
+    "mongodb": {
+      "name": "MongoDB Production",
+      "type": "mongodb",
+      "host": "localhost",
+      "port": 27017,
+      "database": "gestion_bd_heterogenes",
+      "username": "admin",
+      "password": "password",
+      "enabled": true
+    },
+    "oracle": {
+      "name": "Oracle Production",
+      "type": "oracle",
+      "host": "localhost",
+      "port": 1521,
+      "user": "system",
+      "password": "oracle",
+      "service_name": "XE",
+      "enabled": true
+    }
+  },
+  "monitoring": {
+    "enabled": true,
+    "interval_minutes": 60,
+    "metrics_retention_days": 30
+  },
+  "backup": {
+    "enabled": true,
+    "schedule": "0 2 * * *",
+    "retention_days": 7
+  }
+}

@@ -36,13 +36,7 @@ class MySQLCollector(BaseCollector):
 
         
     def connect(self):
-        return mysql.connector.connect(
-            host=self.host,
-            port=self.port,
-            user=self.username,
-            password=self.password,
-            database=self.database
-        )
+        # Utiliser le pool de connexions pour de meilleures performances
         return self.pool.get_connection()
     def collect_metrics(self) -> Dict[str, Any]:
         try:
@@ -58,10 +52,14 @@ class MySQLCollector(BaseCollector):
             cursor.execute("SELECT COUNT(*) as count FROM information_schema.processlist")
             connections = cursor.fetchone()['count']
             
-            # Get query latency (avg)
-            cursor.execute("SELECT AVG(QUERY_TIME) as avg_latency FROM mysql.slow_log WHERE START_TIME > DATE_SUB(NOW(), INTERVAL 5 MINUTE)")
-            latency_row = cursor.fetchone()
-            latency = latency_row['avg_latency'] if latency_row and latency_row['avg_latency'] else 0
+            # Get query latency (avg) - with better error handling
+            try:
+                cursor.execute("SELECT AVG(QUERY_TIME) as avg_latency FROM mysql.slow_log WHERE START_TIME > DATE_SUB(NOW(), INTERVAL 5 MINUTE)")
+                latency_row = cursor.fetchone()
+                latency = latency_row['avg_latency'] if latency_row and latency_row['avg_latency'] else 0
+            except Exception as e:
+                logger.warning(f"Could not get query latency for MySQL: {e}")
+                latency = 0
             
             cursor.close()
             connection.close()

@@ -8,3 +8,8 @@ python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
 python-dotenv
+apscheduler
+mysql-connector-python
+pymongo
+oracledb
+numpy

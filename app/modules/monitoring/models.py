@@ -13,11 +13,13 @@ class DatabaseConnection(Base):
     db_type = Column(String(50), nullable=False)  # MySQL, MongoDB, Oracle
     username = Column(String(100), nullable=False)
     password = Column(String(255), nullable=False)
+    database_name = Column(String(100), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    
     metrics = relationship("Metric", back_populates="database")
     alerts = relationship("Alert", back_populates="database")
-    database_name = Column(String(100), nullable=False)
-
-    
     backup_schedules = relationship("BackupSchedule", back_populates="database")
     backups = relationship("Backup", back_populates="database")
 

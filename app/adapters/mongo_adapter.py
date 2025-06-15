@@ -8,7 +8,10 @@ class MongoDBAdapter(DatabaseAdapter):
     """Adaptateur pour MongoDB."""
     
     def __init__(self, host, port, user, password, database):
-        self.uri = f"mongodb://{user}:{password}@{host}:{port}/{database}"
+        if user and password:
+            self.uri = f"mongodb://{user}:{password}@{host}:{port}/{database}"
+        else:
+            self.uri = f"mongodb://{host}:{port}/{database}"
         self.client = None
         self.db = None
 
@@ -60,68 +63,83 @@ class MongoDBAdapter(DatabaseAdapter):
         except pymongo.errors.PyMongoError as e:
             return {'status': 'error', 'message': str(e)}
 
-def insert(self, collection_name, data):
-    try:
-        result = self.db[collection_name].insert_one(data)
-        return {"status": "success", "inserted_id": result.inserted_id}
-    except pymongo.errors.PyMongoError as e:
-        return {"status": "error", "message": str(e)}
+    def insert(self, collection_name, data):
+        """Insère un document dans une collection."""
+        try:
+            result = self.db[collection_name].insert_one(data)
+            return {"status": "success", "inserted_id": result.inserted_id}
+        except pymongo.errors.PyMongoError as e:
+            return {"status": "error", "message": str(e)}
 
-def find(self, collection_name, query):
-    try:
-        data = list(self.db[collection_name].find(query))
-        return {"status": "success", "data": data}
-    except pymongo.errors.PyMongoError as e:
-        return {"status": "error", "message": str(e)}
+    def find(self, collection_name, query):
+        """Recherche des documents dans une collection."""
+        try:
+            # Convertir les clés _id en ObjectId si nécessaire
+            if "_id" in query and isinstance(query["_id"], str):
+                from bson import ObjectId
+                try:
+                    query["_id"] = ObjectId(query["_id"])
+                except:
+                    pass  # Si la conversion échoue, garder la chaîne
+            
+            data = list(self.db[collection_name].find(query))
+            return {"status": "success", "data": data}
+        except pymongo.errors.PyMongoError as e:
+            return {"status": "error", "message": str(e)}
 
-def delete(self, collection_name, query):
-    try:
-        result = self.db[collection_name].delete_one(query)
-        return {"status": "success", "deleted_count": result.deleted_count}
-    except pymongo.errors.PyMongoError as e:
-        return {"status": "error", "message": str(e)}
+    def delete(self, collection_name, query):
+        """Supprime un document d'une collection."""
+        try:
+            result = self.db[collection_name].delete_one(query)
+            return {"status": "success", "deleted_count": result.deleted_count}
+        except pymongo.errors.PyMongoError as e:
+            return {"status": "error", "message": str(e)}
 
-
-def backup(self, destination_path, backup_type="full"):
-    """Sauvegarde la base MongoDB à chaud avec mongodump."""
-    try:
-        # Créer le répertoire de destination
-        os.makedirs(os.path.dirname(destination_path), exist_ok=True)
-        
-        # Construire la commande mongodump
-        db_name = self.uri.split("/")[-1]
-        
-        # Extraire les composants de l'URI
-        parts = self.uri.split("@")
-        auth = parts[0].replace("mongodb://", "")
-        host_part = parts[1].split("/")[0]
-        
-        cmd = [
-            'mongodump',
-            f'--uri={self.uri}',
-            f'--out={destination_path}',
-            '--oplog'  # Option clé pour la sauvegarde à chaud
-        ]
-        
-        # Exécuter mongodump
-        process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
-        
-        # Compresser le répertoire de sortie
-        compressed_path = f"{destination_path}.tar.gz"
-        subprocess.run(['tar', '-czf', compressed_path, destination_path], check=True)
-        
-        # Nettoyer le répertoire original
-        subprocess.run(['rm', '-rf', destination_path], check=True)
-        
-        return {
-            'status': 'success',
-            'path': compressed_path,
-            'database': db_name,
-            'size': os.path.getsize(compressed_path),
-            'timestamp': datetime.now().isoformat()
-        }
-    except subprocess.SubprocessError as e:
-        return {
-            'status': 'error',
-            'message': str(e)
-        }
+    def backup(self, destination_path, backup_type="full"):
+        """Sauvegarde la base MongoDB à chaud avec mongodump."""
+        try:
+            # Créer le répertoire de destination
+            os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+            
+            # Construire la commande mongodump
+            db_name = self.uri.split("/")[-1]
+            
+            # Extraire les composants de l'URI
+            parts = self.uri.split("@")
+            auth = parts[0].replace("mongodb://", "")
+            host_part = parts[1].split("/")[0]
+            
+            cmd = [
+                'mongodump',
+                f'--uri={self.uri}',
+                f'--out={destination_path}',
+                '--oplog'  # Option clé pour la sauvegarde à chaud
+            ]
+            
+            # Exécuter mongodump
+            process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            
+            # Compresser le répertoire de sortie
+            compressed_path = f"{destination_path}.tar.gz"
+            subprocess.run(['tar', '-czf', compressed_path, destination_path], check=True)
+            
+            # Nettoyer le répertoire original
+            subprocess.run(['rm', '-rf', destination_path], check=True)
+            
+            return {
+                'status': 'success',
+                'path': compressed_path,
+                'database': db_name,
+                'size': os.path.getsize(compressed_path),
+                'timestamp': datetime.now().isoformat()
+            }
+        except subprocess.SubprocessError as e:
+            return {
+                'status': 'error',
+                'message': str(e)
+            }
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': f"Erreur lors de la sauvegarde: {str(e)}"
+            }

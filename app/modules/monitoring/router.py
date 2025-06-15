@@ -12,7 +12,7 @@ router = APIRouter(
     prefix="/monitoring",
     tags=["Monitoring"]
 )
-@router.post("/connections", response_model=schemas.DatabaseConnectionResponse)
+@router.post("/connections", response_model=schemas.DatabaseConnection)
 def create_database_connection(connection: schemas.DatabaseConnectionCreate, db: Session = Depends(get_db)):
     """Register a new database connection for monitoring"""
     db_connection = DatabaseConnection(
@@ -30,7 +30,7 @@ def create_database_connection(connection: schemas.DatabaseConnectionCreate, db:
     db.refresh(db_connection)
     
     return db_connection
-@router.post("/metrics/collect/{db_id}", response_model=schemas.MetricResponse)
+@router.post("/metrics/collect/{db_id}", response_model=schemas.Metric)
 def collect_metrics(db_id: int, db: Session = Depends(get_db)):
     """Manually trigger metrics collection for a specific database"""
     # Get database connection info
@@ -69,13 +69,12 @@ def collect_metrics(db_id: int, db: Session = Depends(get_db)):
     db.refresh(metric)
     
     # Analyze metrics and generate alerts
-    analyzer = MetricAnalyzer(db)
-    alerts = analyzer.analyze_metrics(db_id, metrics_data)
-    resolved = analyzer.check_recovery(db_id, metrics_data)
+    analyzer = MetricAnalyzer(connection_id=db_id, db_type=db_connection.db_type)
+    alerts = analyzer.analyze_metrics(metrics_data)
     
     return metric
 
-@router.get("/metrics/{db_id}", response_model=List[schemas.MetricResponse])
+@router.get("/metrics/{db_id}", response_model=List[schemas.Metric])
 def get_metrics(
     db_id: int, 
     start_time: Optional[datetime] = None, 
@@ -97,7 +96,7 @@ def get_metrics(
         
     return query.order_by(Metric.timestamp.desc()).limit(limit).all()
 
-@router.get("/alerts", response_model=List[schemas.AlertResponse])
+@router.get("/alerts", response_model=List[schemas.Alert])
 def get_alerts(
     resolved: Optional[bool] = None,
     db_id: Optional[int] = None,
@@ -119,7 +118,7 @@ def get_alerts(
         
     return query.order_by(Alert.timestamp.desc()).limit(limit).all()
 
-@router.post("/alerts/rules", response_model=schemas.AlertRuleResponse)
+@router.post("/alerts/rules", response_model=schemas.AlertRule)
 def create_alert_rule(rule: schemas.AlertRuleCreate, db: Session = Depends(get_db)):
     """Create a new alert rule"""
     # Check if database exists

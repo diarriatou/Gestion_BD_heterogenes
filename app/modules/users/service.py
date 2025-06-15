@@ -9,7 +9,12 @@ import json
 from app.config import API_SECRET_KEY, API_ALGORITHM, API_ACCESS_TOKEN_EXPIRE_MINUTES
 from app.modules.users import models, schemas
 from app.adapters.mysql_adapter import MySQLAdapter
-from app.adapters.oracle_adapter import OracleAdapter
+try:
+    from app.adapters.oracle_adapter import OracleAdapter
+    ORACLE_AVAILABLE = True
+except ImportError:
+    OracleAdapter = None
+    ORACLE_AVAILABLE = False
 from app.adapters.mongo_adapter import MongoDBAdapter
 
 # Configuration de l'encryption des mots de passe
