@@ -2,7 +2,7 @@ import mysql.connector
 import pymongo
 import oracledb 
 import time
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Dict, Any, List, Optional
 import logging
 from mysql.connector.pooling import MySQLConnectionPool
@@ -71,13 +71,13 @@ class MySQLCollector(BaseCollector):
                 "connections_count": connections,
                 "query_latency": float(latency),
                 "active_transactions": int(status.get('ACTIVE_TRANSACTIONS', 0)),
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(UTC)
             }
         except Exception as e:
             logger.error(f"Error collecting MySQL metrics: {str(e)}")
             return {
                 "error": str(e),
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(UTC)
             }
 
 class MongoDBCollector(BaseCollector):
@@ -116,13 +116,13 @@ class MongoDBCollector(BaseCollector):
                 "connections_count": connections.get("current", 0),
                 "query_latency": None,  # Requires profiling
                 "active_transactions": opcounters.get("query", 0) + opcounters.get("insert", 0) + opcounters.get("update", 0) + opcounters.get("delete", 0),
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(UTC)
             }
         except Exception as e:
             logger.error(f"Error collecting MongoDB metrics: {str(e)}")
             return {
                 "error": str(e),
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(UTC)
             }
 
 class OracleCollector(BaseCollector):
@@ -176,13 +176,13 @@ class OracleCollector(BaseCollector):
                 "connections_count": connections,
                 "query_latency": None,  # Requires additional configuration
                 "active_transactions": transactions,
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(UTC)
             }
         except Exception as e:
             logger.error(f"Error collecting Oracle metrics: {str(e)}")
             return {
                 "error": str(e),
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(UTC)
             }
 
 def get_collector(db_type: str, connection_params: Dict[str, Any]) -> BaseCollector:
@@ -224,7 +224,7 @@ def normalize_metrics(self, raw_metrics: Dict[str, Any]) -> Dict[str, Any]:
         "connections_count": None,
         "query_latency": None,
         "active_transactions": None,
-        "timestamp": datetime.utcnow()
+        "timestamp": datetime.now(UTC)
     }
     
     # Update with available metrics

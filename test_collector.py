@@ -1,17 +1,16 @@
-from app.modules.monitoring.collector import DatabaseCollector
+from app.modules.monitoring.collector import get_collector
 
-# Configuration de test (adapte selon tes bases)
+# Configuration de test
 db_config = {
-    'db_type': 'MySQL',  # ou 'MySQL', 'Oracle'
     'host': 'localhost',
     'port': 3306,
-    'db_name': 'teste_db',
-    'user': 'root',  # Pour MySQL et Oracle
-    'password': ''  # Pour MySQL et Oracle
+    'username': 'root',  # Pour MySQL et Oracle
+    'password': '',  # Pour MySQL et Oracle
+    'database': 'teste_db'  # Pour MySQL et MongoDB
 }
 
 # Initialiser et exécuter la collecte
-collector = DatabaseCollector(db_config)
+collector = get_collector('mysql', db_config)
 metrics = collector.collect_metrics()
 
 # Afficher les résultats

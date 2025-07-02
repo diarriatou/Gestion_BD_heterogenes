@@ -1,4 +1,3 @@
-
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
@@ -22,7 +21,7 @@ class BackupResponse(BaseModel):
     error_message: Optional[str] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class RestoreBase(BaseModel):
     backup_id: int
@@ -46,7 +45,7 @@ class BackupScheduleResponse(BaseModel):
     is_active: bool
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class BackupScheduleCreate(BaseModel):
     database_id: int

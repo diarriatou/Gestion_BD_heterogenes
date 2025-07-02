@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
@@ -33,13 +33,15 @@ class DatabaseConnectionBase(BaseModel):
     database_name: str = Field(..., min_length=1, max_length=100, description="Nom de la base de données")
     is_active: bool = Field(default=True, description="Statut actif de la connexion")
 
-    @validator('host')
+    @field_validator('host')
+    @classmethod
     def validate_host(cls, v):
         if not v or v.strip() == "":
             raise ValueError("L'adresse hôte ne peut pas être vide")
         return v.strip()
 
-    @validator('port')
+    @field_validator('port')
+    @classmethod
     def validate_port(cls, v):
         if v < 1 or v > 65535:
             raise ValueError("Le port doit être entre 1 et 65535")
@@ -63,8 +65,7 @@ class DatabaseConnection(DatabaseConnectionBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class MetricBase(BaseModel):
     cpu_usage: Optional[float] = Field(None, ge=0, le=100, description="Utilisation CPU en pourcentage")
@@ -82,8 +83,7 @@ class Metric(MetricBase):
     database_id: int
     timestamp: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class AlertBase(BaseModel):
     alert_type: AlertType
@@ -100,8 +100,7 @@ class Alert(AlertBase):
     timestamp: datetime
     resolved_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class MetricsSummary(BaseModel):
     total_databases: int
@@ -133,8 +132,7 @@ class AlertRule(AlertRuleBase):
     id: int
     database_id: int
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class MetricsTimeRange(BaseModel):
     database_id: int
